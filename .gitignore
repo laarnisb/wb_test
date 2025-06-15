@@ -1,17 +1,18 @@
-# Ignore Streamlit secrets
+# Streamlit secrets
 .streamlit/secrets.toml
 
-# Ignore Python cache files
-__pycache__/
-*.py[cod]
-*.pyo
-
-# Ignore environment and virtualenv folders
-.env
+# Virtual environments
 venv/
 env/
 .venv/
+.env/
 
-# Ignore system files
+# Logs and cache
+*.log
+*.tmp
+*.bak
 .DS_Store
-Thumbs.db
+.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
+*.sqlite3
