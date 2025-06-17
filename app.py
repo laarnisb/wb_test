@@ -1,34 +1,59 @@
 import streamlit as st
-from transaction import submit_transaction
-from forecast import forecast_next_month
-from recommender import generate_recommendation
+from database import insert_transaction, fetch_transactions, test_db_connection
 
-st.set_page_config(page_title="WiseBudget", layout="centered")
+st.set_page_config(page_title="WiseBudget App", layout="centered")
 
-st.title("💸 WiseBudget: Personal Finance Assistant")
+# App title
+st.title("💸 WiseBudget: Personal Finance Tracker")
 
-menu = st.sidebar.selectbox("Navigation", ["Add Transaction", "Forecast", "Get Recommendation"])
+# Tabs for navigation
+tab1, tab2, tab3 = st.tabs(["📥 Submit Transaction", "📊 View Transactions", "🔧 Diagnostics"])
 
-if menu == "Add Transaction":
-    st.subheader("Add a New Transaction")
+# Submit Tab
+with tab1:
+    st.header("Add a Transaction")
+
     user_id = st.text_input("User ID")
-    amount = st.number_input("Amount", step=0.01)
-    category = st.text_input("Category")
+    amount = st.number_input("Amount ($)", step=0.01)
+    category = st.selectbox("Category", ["Needs", "Wants", "Savings"])
     description = st.text_input("Description")
+
     if st.button("Submit"):
-        submit_transaction(user_id, amount, category, description)
-        st.success("Transaction submitted successfully.")
+        if user_id and description:
+            try:
+                insert_transaction(user_id, amount, category, description)
+                st.success("Transaction submitted successfully!")
+            except Exception as e:
+                st.error(f"Failed to submit transaction: {e}")
+        else:
+            st.warning("Please fill in both User ID and Description.")
 
-elif menu == "Forecast":
-    st.subheader("Spending Forecast")
-    user_id = st.text_input("User ID for Forecast")
-    if st.button("Generate Forecast"):
-        prediction = forecast_next_month(user_id)
-        st.info(f"Predicted spending for next month: ${prediction:.2f}")
+# View Tab
+with tab2:
+    st.header("Transaction History")
 
-elif menu == "Get Recommendation":
-    st.subheader("Personalized Financial Recommendation")
-    user_id = st.text_input("User ID for Recommendation")
-    if st.button("Get Tip"):
-        tip = generate_recommendation(user_id)
-        st.success(tip)
+    view_user_id = st.text_input("Enter User ID to view transactions", key="view_user_id")
+
+    if st.button("View Transactions"):
+        if view_user_id:
+            try:
+                transactions = fetch_transactions(view_user_id)
+                if transactions:
+                    for t in transactions:
+                        st.write(f"💵 **Amount**: ${t['amount']}")
+                        st.write(f"📂 **Category**: {t['category']}")
+                        st.write(f"📝 **Description**: {t['description']}")
+                        st.write(f"📅 **Date**: {t['timestamp']}")
+                        st.markdown("---")
+                else:
+                    st.info("No transactions found.")
+            except Exception as e:
+                st.error(f"Error fetching transactions: {e}")
+        else:
+            st.warning("Please enter a User ID.")
+
+# Diagnostic Tab
+with tab3:
+    st.header("Connection Diagnostics")
+    if st.button("Test Database Connection"):
+        test_db_connection()
