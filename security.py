@@ -1,31 +1,31 @@
-import bcrypt
 from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad, unpad
 import base64
 import os
 
-# --- Password hashing ---
-def hash_password(password):
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode(), salt).decode()
+# Get the base64-encoded key from environment variable
+key_b64 = os.getenv("ENCRYPTION_KEY")
 
-def verify_password(password, hashed):
-    return bcrypt.checkpw(password.encode(), hashed.encode())
-
-# --- AES-256 encryption ---
-KEY = os.environ.get("ENCRYPTION_KEY", None)
-if KEY is None:
-    raise ValueError("Missing AES-256 encryption key. Set ENCRYPTION_KEY in environment variables.")
-key = KEY.encode("utf-8")[:32]  # ensure 32 bytes
+# Decode it to get the 32-byte key
+key = base64.urlsafe_b64decode(key_b64.encode())
 
 def encrypt_data(data):
-    cipher = AES.new(key, AES.MODE_EAX)
-    nonce = cipher.nonce
-    ciphertext, tag = cipher.encrypt_and_digest(data.encode("utf-8"))
-    return base64.b64encode(nonce + tag + ciphertext).decode("utf-8")
+    try:
+        cipher = AES.new(key, AES.MODE_CBC)
+        ct_bytes = cipher.encrypt(pad(data.encode(), AES.block_size))
+        iv = base64.urlsafe_b64encode(cipher.iv).decode('utf-8')
+        ct = base64.urlsafe_b64encode(ct_bytes).decode('utf-8')
+        return iv + ":" + ct
+    except Exception as e:
+        return f"Encryption failed: {e}"
 
-def decrypt_data(encoded):
-    raw = base64.b64decode(encoded)
-    nonce, tag, ciphertext = raw[:16], raw[16:32], raw[32:]
-    cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
-    return cipher.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+def decrypt_data(enc_data):
+    try:
+        iv_str, ct_str = enc_data.split(":")
+        iv = base64.urlsafe_b64decode(iv_str.encode())
+        ct = base64.urlsafe_b64decode(ct_str.encode())
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        pt = unpad(cipher.decrypt(ct), AES.block_size)
+        return pt.decode('utf-8')
+    except Exception as e:
+        return f"Decryption failed: {e}"
