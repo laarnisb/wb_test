@@ -1,31 +1,29 @@
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 import base64
-import os
+import streamlit as st
 
-# Get the base64-encoded key from environment variable
-key_b64 = os.getenv("ENCRYPTION_KEY")
+# Load the 256-bit key (Base64-encoded)
+key = base64.urlsafe_b64decode(st.secrets["ENCRYPTION_KEY"])
 
-# Decode it to get the 32-byte key
-key = base64.urlsafe_b64decode(key_b64.encode())
+BLOCK_SIZE = 16  # AES block size
 
-def encrypt_data(data):
+def encrypt_message(message: str) -> str:
+    """Encrypts a message using AES-256-CBC."""
+    cipher = AES.new(key, AES.MODE_CBC)
+    ct_bytes = cipher.encrypt(pad(message.encode(), BLOCK_SIZE))
+    iv = base64.urlsafe_b64encode(cipher.iv).decode()
+    ct = base64.urlsafe_b64encode(ct_bytes).decode()
+    return f"{iv}:{ct}"
+
+def decrypt_message(encrypted_message: str) -> str:
+    """Decrypts an AES-256-CBC message."""
     try:
-        cipher = AES.new(key, AES.MODE_CBC)
-        ct_bytes = cipher.encrypt(pad(data.encode(), AES.block_size))
-        iv = base64.urlsafe_b64encode(cipher.iv).decode('utf-8')
-        ct = base64.urlsafe_b64encode(ct_bytes).decode('utf-8')
-        return iv + ":" + ct
-    except Exception as e:
-        return f"Encryption failed: {e}"
-
-def decrypt_data(enc_data):
-    try:
-        iv_str, ct_str = enc_data.split(":")
-        iv = base64.urlsafe_b64decode(iv_str.encode())
-        ct = base64.urlsafe_b64decode(ct_str.encode())
+        iv_b64, ct_b64 = encrypted_message.split(":")
+        iv = base64.urlsafe_b64decode(iv_b64)
+        ct = base64.urlsafe_b64decode(ct_b64)
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        pt = unpad(cipher.decrypt(ct), AES.block_size)
-        return pt.decode('utf-8')
+        pt = unpad(cipher.decrypt(ct), BLOCK_SIZE)
+        return pt.decode()
     except Exception as e:
-        return f"Decryption failed: {e}"
+        return f"Decryption failed: {str(e)}"
