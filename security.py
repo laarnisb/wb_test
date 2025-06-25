@@ -3,9 +3,9 @@ import os
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-# Load the key from environment variable
+# Load and decode AES-256 key
 raw_key = os.getenv("ENCRYPTION_KEY")
-key = base64.urlsafe_b64decode(raw_key)
+key = base64.b64decode(raw_key)  # Use standard b64decode
 
 def encrypt_message(message):
     cipher = AES.new(key, AES.MODE_CBC)
