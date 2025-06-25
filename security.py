@@ -1,17 +1,20 @@
-import os
 import base64
+import os
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-key_b64 = os.getenv("ENCRYPTION_KEY")  # Should be 43-character base64 string
-key = base64.urlsafe_b64decode(key_b64 + '==')  # Add padding back before decoding
+# Load the key from environment variable
+raw_key = os.getenv("ENCRYPTION_KEY")
+key = base64.urlsafe_b64decode(raw_key)
 
 def encrypt_message(message):
-    cipher = AES.new(key, AES.MODE_ECB)
-    encrypted = cipher.encrypt(pad(message.encode(), AES.block_size))
-    return base64.urlsafe_b64encode(encrypted).decode()
+    cipher = AES.new(key, AES.MODE_CBC)
+    ct_bytes = cipher.encrypt(pad(message.encode(), AES.block_size))
+    return base64.b64encode(cipher.iv + ct_bytes).decode()
 
-def decrypt_message(encrypted_message):
-    cipher = AES.new(key, AES.MODE_ECB)
-    decrypted = unpad(cipher.decrypt(base64.urlsafe_b64decode(encrypted_message)), AES.block_size)
-    return decrypted.decode()
+def decrypt_message(ciphertext):
+    data = base64.b64decode(ciphertext)
+    iv = data[:AES.block_size]
+    ct = data[AES.block_size:]
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    return unpad(cipher.decrypt(ct), AES.block_size).decode()
