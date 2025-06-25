@@ -1,4 +1,44 @@
-from database import insert_transaction
+from sqlalchemy import Table, Column, Integer, String, Float, Date, MetaData, select
+from database import engine
+from security import encrypt_data, decrypt_data
 
-def submit_transaction(user_id, amount, category, description):
-    insert_transaction(user_id, amount, category, description)
+metadata = MetaData()
+
+transactions = Table(
+    "transactions", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("user_id", Integer, nullable=False),
+    Column("date", String, nullable=False),
+    Column("category", String, nullable=False),
+    Column("amount", String, nullable=False),  # Stored as encrypted string
+    Column("description", String, nullable=True)
+)
+
+metadata.create_all(engine)
+
+def submit_transaction(user_id, date, category, amount, description):
+    encrypted_amount = encrypt_data(str(amount))
+    with engine.begin() as conn:
+        conn.execute(transactions.insert().values(
+            user_id=user_id,
+            date=date,
+            category=category,
+            amount=encrypted_amount,
+            description=description
+        ))
+
+def fetch_transactions(user_id):
+    with engine.begin() as conn:
+        result = conn.execute(
+            select(transactions).where(transactions.c.user_id == user_id)
+        ).fetchall()
+
+    return [
+        {
+            "date": row.date,
+            "category": row.category,
+            "amount": float(decrypt_data(row.amount)),
+            "description": row.description
+        }
+        for row in result
+    ]
