@@ -1,59 +1,93 @@
 import streamlit as st
-from database import insert_transaction, fetch_transactions, test_db_connection
+from user import register_user, authenticate_user
+from transaction import submit_transaction, fetch_transactions
+from forecast import forecast_spending
+from recommender import generate_recommendations
+from budget import compare_budget_vs_actual
+from database import create_tables
+from datetime import date
 
-st.set_page_config(page_title="WiseBudget App", layout="centered")
+# Initialize database tables
+create_tables()
 
-# App title
-st.title("💸 WiseBudget: Personal Finance Tracker")
+st.set_page_config(page_title="WiseBudget", layout="wide")
+st.title("💸 WiseBudget: Personal Finance Assistant")
+st.markdown("Securely manage your expenses, forecast future spending, and receive personalized financial tips.")
 
-# Tabs for navigation
-tab1, tab2, tab3 = st.tabs(["📥 Submit Transaction", "📊 View Transactions", "🔧 Diagnostics"])
+menu = ["Login", "Register", "Dashboard"]
+choice = st.sidebar.selectbox("Navigation", menu)
 
-# Submit Tab
-with tab1:
-    st.header("Add a Transaction")
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
 
-    user_id = st.text_input("User ID")
-    amount = st.number_input("Amount ($)", step=0.01)
-    category = st.selectbox("Category", ["Needs", "Wants", "Savings"])
-    description = st.text_input("Description")
-
-    if st.button("Submit"):
-        if user_id and description:
-            try:
-                insert_transaction(user_id, amount, category, description)
-                st.success("Transaction submitted successfully!")
-            except Exception as e:
-                st.error(f"Failed to submit transaction: {e}")
+# Registration Page
+if choice == "Register":
+    st.subheader("Create New Account")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Register"):
+        if register_user(username, password):
+            st.success("Account created successfully. Please log in.")
         else:
-            st.warning("Please fill in both User ID and Description.")
+            st.error("Username already exists.")
 
-# View Tab
-with tab2:
-    st.header("Transaction History")
-
-    view_user_id = st.text_input("Enter User ID to view transactions", key="view_user_id")
-
-    if st.button("View Transactions"):
-        if view_user_id:
-            try:
-                transactions = fetch_transactions(view_user_id)
-                if transactions:
-                    for t in transactions:
-                        st.write(f"💵 **Amount**: ${t['amount']}")
-                        st.write(f"📂 **Category**: {t['category']}")
-                        st.write(f"📝 **Description**: {t['description']}")
-                        st.write(f"📅 **Date**: {t['timestamp']}")
-                        st.markdown("---")
-                else:
-                    st.info("No transactions found.")
-            except Exception as e:
-                st.error(f"Error fetching transactions: {e}")
+# Login Page
+elif choice == "Login":
+    st.subheader("Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        user_id = authenticate_user(username, password)
+        if user_id:
+            st.session_state.logged_in = True
+            st.session_state.user_id = user_id
+            st.success(f"Welcome, {username}!")
         else:
-            st.warning("Please enter a User ID.")
+            st.error("Invalid username or password.")
 
-# Diagnostic Tab
-with tab3:
-    st.header("Connection Diagnostics")
-    if st.button("Test Database Connection"):
-        test_db_connection()
+# Dashboard
+elif choice == "Dashboard" and st.session_state.logged_in:
+    st.success(f"Logged in as user ID: {st.session_state.user_id}")
+    tab1, tab2, tab3, tab4 = st.tabs(["💾 Add Transaction", "📊 Budget Dashboard", "🔮 Forecast", "🎯 Recommendations"])
+
+    with tab1:
+        st.subheader("Add Transaction")
+        category = st.selectbox("Category", ["Income", "Needs", "Wants", "Savings"])
+        amount = st.number_input("Amount", min_value=0.0, step=0.01)
+        description = st.text_input("Description")
+        txn_date = st.date_input("Date", value=date.today())
+        if st.button("Submit Transaction"):
+            submit_transaction(st.session_state.user_id, str(txn_date), category, amount, description)
+            st.success("Transaction added!")
+
+    with tab2:
+        st.subheader("Budget Overview")
+        data = fetch_transactions(st.session_state.user_id)
+        if data:
+            compare_budget_vs_actual(data)
+        else:
+            st.info("No transaction data found.")
+
+    with tab3:
+        st.subheader("Forecast Future Spending")
+        data = fetch_transactions(st.session_state.user_id)
+        if data:
+            forecast = forecast_spending(data)
+            st.metric("Next Forecasted Spending", f"${forecast:.2f}")
+        else:
+            st.warning("Forecasting requires transaction data.")
+
+    with tab4:
+        st.subheader("Recommendations")
+        data = fetch_transactions(st.session_state.user_id)
+        if data:
+            for txn in data:
+                tip = generate_recommendations(txn["category"], txn["amount"])
+                st.info(f"{txn['date']} - {tip}")
+        else:
+            st.warning("No transactions to analyze.")
+
+elif choice == "Dashboard":
+    st.warning("Please log in to access the dashboard.")
