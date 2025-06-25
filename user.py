@@ -18,7 +18,7 @@ def register_user(username, password):
     with engine.begin() as conn:
         result = conn.execute(select(users).where(users.c.username == username))
         if result.fetchone():
-            return False  # Username already exists
+            return False
         conn.execute(users.insert().values(username=username, password=hashed))
         return True
 
