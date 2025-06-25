@@ -1,23 +1,34 @@
-
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+from keras.models import Sequential
+from keras.layers import LSTM, Dense
 import numpy as np
-from datetime import datetime, timedelta
 
-def forecast_next_month(transactions_df):
-    if transactions_df.empty or 'amount' not in transactions_df.columns or 'date' not in transactions_df.columns:
-        return "Insufficient data to forecast."
+def prepare_lstm_data(df, sequence_length=10):
+    df = pd.DataFrame(df)
+    df = df.sort_values('date')
+    data = df['amount'].values.reshape(-1, 1)
+    scaler = MinMaxScaler()
+    scaled_data = scaler.fit_transform(data)
 
-    transactions_df['date'] = pd.to_datetime(transactions_df['date'])
-    transactions_df.set_index('date', inplace=True)
+    X, y = [], []
+    for i in range(sequence_length, len(scaled_data)):
+        X.append(scaled_data[i-sequence_length:i])
+        y.append(scaled_data[i])
+    return np.array(X), np.array(y), scaler
 
-    # Group by month and sum amounts
-    monthly_data = transactions_df.resample('M').sum(numeric_only=True)
+def build_lstm_model(input_shape):
+    model = Sequential()
+    model.add(LSTM(50, activation='relu', input_shape=input_shape))
+    model.add(Dense(1))
+    model.compile(optimizer='adam', loss='mse')
+    return model
 
-    if len(monthly_data) < 2:
-        return "Not enough monthly data to forecast."
-
-    # Simple forecast using average of previous months
-    forecast = monthly_data['amount'].mean()
-    next_month = (monthly_data.index[-1] + pd.DateOffset(months=1)).strftime('%B %Y')
-
-    return f"Forecasted spending for {next_month}: ${forecast:.2f}"
+def forecast_spending(df, epochs=10):
+    if len(df) < 15:
+        return 0.0  # Not enough data to train
+    X, y, scaler = prepare_lstm_data(df)
+    model = build_lstm_model((X.shape[1], X.shape[2]))
+    model.fit(X, y, epochs=epochs, verbose=0)
+    prediction = model.predict(X[-1].reshape(1, X.shape[1], X.shape[2]))
+    return scaler.inverse_transform(prediction)[0][0]
